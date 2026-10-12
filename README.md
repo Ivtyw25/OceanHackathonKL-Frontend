@@ -1,4 +1,4 @@
-# AlgaWatch Frontend — BloomWatch Toba
+# BloomWatch Toba — OceanHackathon KL Frontend
 
 A 3D frontend prototype for forecasting harmful algal blooms at the floating-cage fish farms of Lake Toba, North Sumatra. It shows where algae is now, where currents and wind will carry it over the next five days, and what that means for each farm.
 
@@ -27,8 +27,8 @@ There is no backend. The bloom simulation runs in the browser in a Web Worker.
 Requires Node.js 22 or newer (developed on Node 24, npm 11).
 
 ```bash
-git clone https://github.com/KUL08-AlgaWatch/frontend.git
-cd frontend
+git clone https://github.com/Ivtyw25/OceanHackathonKL-Frontend.git
+cd OceanHackathonKL-Frontend
 npm install
 npm run dev        # http://localhost:5173
 ```
@@ -49,7 +49,7 @@ Keyboard: Space plays or pauses. Left and right arrows step one hour (hold Shift
 ## Folder structure
 
 ```
-frontend/
+OceanHackathonKL-Frontend/
 ├── index.html                  Vite entry HTML (title, favicon, #root)
 ├── package.json                Scripts and dependencies
 ├── vite.config.ts              React + Tailwind plugins; workers built as ES modules
