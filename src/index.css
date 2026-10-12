@@ -1,0 +1,156 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/atkinson-hyperlegible-next';
+
+@theme {
+  --font-sans: 'Atkinson Hyperlegible Next Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --color-mist: #e4eaec;
+  --color-mist-deep: #c9d4d8;
+  --color-paper: #f7f9f9;
+  --color-ink: #1e2a30;
+  --color-ink-2: #46555d;
+  --color-ink-3: #63727a;
+  --color-lake: #1b4660;
+  --color-lake-2: #2a6886;
+  --color-algae: #3f9d4b;
+  --color-status-low: #0ca30c;
+  --color-status-watch: #fab219;
+  --color-status-high: #ec835a;
+  --color-status-severe: #d03b3b;
+
+  --text-2xs: 0.6875rem;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--color-mist);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-lake-2);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Frosted panels that sit over the relief model. */
+  .panel {
+    background: rgb(247 249 249 / 0.84);
+    backdrop-filter: blur(14px) saturate(1.15);
+    -webkit-backdrop-filter: blur(14px) saturate(1.15);
+    border-radius: 14px;
+    box-shadow:
+      0 0 0 1px rgb(30 42 48 / 0.09),
+      0 18px 40px -26px rgb(30 42 48 / 0.55);
+  }
+
+  .farm-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+    padding: 0.22rem 0.55rem 0.22rem 0.4rem;
+    border-radius: 999px;
+    font: 600 0.75rem/1.1 var(--font-sans);
+    color: var(--color-ink);
+    background: rgb(247 249 249 / 0.9);
+    box-shadow:
+      0 0 0 1px rgb(30 42 48 / 0.12),
+      0 6px 14px -8px rgb(30 42 48 / 0.6);
+    cursor: pointer;
+    transition:
+      background-color 120ms,
+      color 120ms;
+  }
+  .farm-label:hover {
+    background: #fff;
+  }
+  .farm-label.is-selected {
+    background: var(--color-ink);
+    color: #fff;
+  }
+
+  .buoy-card {
+    min-width: 11rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 10px;
+    font: 400 0.75rem/1.35 var(--font-sans);
+    color: var(--color-ink);
+    background: rgb(247 249 249 / 0.95);
+    box-shadow:
+      0 0 0 1px rgb(30 42 48 / 0.12),
+      0 10px 24px -14px rgb(30 42 48 / 0.6);
+  }
+  .buoy-card-title {
+    margin: 0 0 0.3rem;
+    font-weight: 700;
+  }
+  .buoy-card dl {
+    margin: 0;
+    display: grid;
+    gap: 0.1rem;
+  }
+  .buoy-card dl > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .buoy-card dt {
+    color: var(--color-ink-2);
+  }
+  .buoy-card dd {
+    margin: 0;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .range-track {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    width: 100%;
+    margin: 0;
+    cursor: pointer;
+  }
+  .range-track::-webkit-slider-runnable-track {
+    height: 100%;
+    background: transparent;
+  }
+  .range-track::-moz-range-track {
+    height: 100%;
+    background: transparent;
+  }
+  .range-track::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 100%;
+    background: transparent;
+    border: 0;
+  }
+  .range-track::-moz-range-thumb {
+    width: 18px;
+    height: 100%;
+    background: transparent;
+    border: 0;
+  }
+  .range-track:focus-visible {
+    outline: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}

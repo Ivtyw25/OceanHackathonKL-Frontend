@@ -1,0 +1,26 @@
+{
+  "width": 1024,
+  "height": 1024,
+  "bounds": {
+    "west": 98.4,
+    "east": 99.25,
+    "south": 2.175,
+    "north": 3.025
+  },
+  "lakeLevelM": 900,
+  "maxDepthM": 505,
+  "metersPerPixel": {
+    "x": 92.3,
+    "y": 91.8
+  },
+  "lakeAreaKm2": 1070,
+  "landRangeM": [
+    -777,
+    1536
+  ],
+  "heightsOffset": 0,
+  "heightsScale": 0.1,
+  "maskOffset": 2097152,
+  "rowOrder": "north-to-south",
+  "attribution": "Land elevation: AWS Open Data Terrain Tiles (Mapzen/Tilezen; SRTM, GMTED, ETOPO1). Lake floor: modelled from distance to shore, scaled to a 505 m maximum depth."
+}
