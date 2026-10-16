@@ -1,9 +1,11 @@
-// The relief model: real caldera terrain on a block whose cut sides show pale Toba tuff.
+// The relief model: real terrain and water floor on a block with layered cut sides.
 
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
-import { BASE_Y, VERTICAL_EXAGGERATION as EXAG } from '../config';
-import { heightAtPx, pxToWorld, type Terrain as TerrainData } from '../data/terrain';
+import { getRegion } from '../data/region';
+import { contourStepM, heightAtPx, pxToWorld, type Terrain as TerrainData } from '../data/terrain';
+
+const view = () => getRegion().view;
 import { useApp } from '../state/store';
 import { PALETTE } from './palette';
 
@@ -34,6 +36,8 @@ function smoothNoise(x: number, z: number) {
 }
 
 function buildSurface(t: TerrainData) {
+  // Floor colour reaches its deepest tone at three quarters of the region's depth (160 m at most).
+  const floorRange = Math.min(160, t.meta.maxDepthM * 0.75);
   const n = SEGMENTS + 1;
   const pos = new Float32Array(n * n * 3);
   const elev = new Float32Array(n * n);
@@ -50,7 +54,7 @@ function buildSurface(t: TerrainData) {
       const my = Math.min(t.height - 1, Math.floor(py));
       lake[k] = t.mask[my * t.width + mx];
       pos[k * 3] = wx;
-      pos[k * 3 + 1] = (h / 1000) * EXAG;
+      pos[k * 3 + 1] = (h / 1000) * view().verticalExaggeration;
       pos[k * 3 + 2] = wz;
     }
   }
@@ -83,9 +87,9 @@ function buildSurface(t: TerrainData) {
   const col = new THREE.Color();
   for (let k = 0; k < n * n; k++) {
     const h = elev[k];
-    // Lake floor by the lake mask, not by sign: some land outside the caldera lies below the lake.
+    // Water floor by the water mask, not by sign: land can sit at or below the water surface.
     if (lake[k]) {
-      col.copy(floorShallow).lerp(floorDeep, smooth(0, 160, -h));
+      col.copy(floorShallow).lerp(floorDeep, smooth(0, floorRange, -h));
     } else {
       const slope = 1 - normals.getY(k);
       col.copy(shore).lerp(forest, smooth(25, 190, Math.abs(h)));
@@ -122,7 +126,7 @@ function buildSkirt(pos: Float32Array, n: number) {
       const x = pos[k * 3];
       const y = pos[k * 3 + 1];
       const z = pos[k * 3 + 2];
-      positions.push(x, y, z, x, BASE_Y, z);
+      positions.push(x, y, z, x, view().baseY, z);
       normals.push(...e.normal, ...e.normal);
       tops.push(y, y);
     }
@@ -144,7 +148,7 @@ function buildSkirt(pos: Float32Array, n: number) {
   return geo;
 }
 
-function makeSurfaceMaterial(contours: { value: number }) {
+function makeSurfaceMaterial(contours: { value: number }, floorStepM: number) {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0 });
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uContours = contours;
@@ -152,7 +156,7 @@ function makeSurfaceMaterial(contours: { value: number }) {
       .replace('#include <common>', '#include <common>\nattribute float aLake;\nvarying float vElevM;\nvarying float vLake;')
       .replace(
         '#include <begin_vertex>',
-        `#include <begin_vertex>\nvElevM = position.y / ${EXAG.toFixed(4)} * 1000.0;\nvLake = aLake;`,
+        `#include <begin_vertex>\nvElevM = position.y / ${view().verticalExaggeration.toFixed(4)} * 1000.0;\nvLake = aLake;`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying float vElevM;\nvarying float vLake;\nuniform float uContours;')
@@ -160,8 +164,8 @@ function makeSurfaceMaterial(contours: { value: number }) {
         '#include <color_fragment>',
         /* glsl */ `#include <color_fragment>
         {
-          // Contour lines: every 100 m on land, every 50 m on the lake floor, bolder every 500 m.
-          float interval = vLake > 0.5 ? 50.0 : 100.0;
+          // Contour lines: every 100 m on land, every floorStepM on the water floor, bolder every 500 m.
+          float interval = vLake > 0.5 ? ${floorStepM.toFixed(1)} : 100.0;
           float f = vElevM / interval;
           float minor = 1.0 - smoothstep(0.0, fwidth(f) * 1.1, abs(fract(f + 0.5) - 0.5));
           float g = vElevM / 500.0;
@@ -230,7 +234,7 @@ export function Terrain({ terrain }: { terrain: TerrainData }) {
     const s = buildSurface(terrain);
     return { surface: s.geo, skirt: buildSkirt(s.pos, s.n) };
   }, [terrain]);
-  const surfaceMat = useMemo(() => makeSurfaceMaterial(contourUniform), [contourUniform]);
+  const surfaceMat = useMemo(() => makeSurfaceMaterial(contourUniform, contourStepM(terrain)), [contourUniform, terrain]);
   const skirtMat = useMemo(() => makeSkirtMaterial(), []);
   const shadowTex = useMemo(() => makeContactShadow(), []);
 
@@ -254,11 +258,11 @@ export function Terrain({ terrain }: { terrain: TerrainData }) {
     <group>
       <mesh geometry={surface} material={surfaceMat} castShadow receiveShadow />
       <mesh geometry={skirt} material={skirtMat} castShadow receiveShadow />
-      <mesh rotation-x={-Math.PI / 2} position-y={BASE_Y - 0.01} receiveShadow>
+      <mesh rotation-x={-Math.PI / 2} position-y={view().baseY - 0.01} receiveShadow>
         <planeGeometry args={[size * 5, size * 5]} />
         <shadowMaterial opacity={0.16} transparent />
       </mesh>
-      <mesh rotation-x={-Math.PI / 2} position-y={BASE_Y - 0.005} renderOrder={-1}>
+      <mesh rotation-x={-Math.PI / 2} position-y={view().baseY - 0.005} renderOrder={-1}>
         <planeGeometry args={[size * 1.5, size * 1.5]} />
         <meshBasicMaterial map={shadowTex} transparent depthWrite={false} />
       </mesh>

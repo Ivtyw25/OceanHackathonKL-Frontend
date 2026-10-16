@@ -1,0 +1,15 @@
+{
+  "defaultRegion": "sabah-kk",
+  "regions": [
+    {
+      "id": "sabah-kk",
+      "name": "Kota Kinabalu coast",
+      "area": "Sabah, Malaysia"
+    },
+    {
+      "id": "toba",
+      "name": "Lake Toba",
+      "area": "North Sumatra, Indonesia"
+    }
+  ]
+}

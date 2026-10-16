@@ -1,8 +1,20 @@
 import { useState } from 'react';
-import { CHL_BLOOM } from '../config';
+import { TIMELINE_START_H } from '../config';
+import { contourStepM } from '../data/terrain';
+import { algaeRef, getRegion } from '../data/region';
+import { DATA_SOURCE } from '../state/store';
 import { useApp, type LayerKey } from '../state/store';
 import { algaeCss } from './color';
+import { algaeStops } from '../scene/palette';
 import { useMediaQuery } from './useMediaQuery';
+
+/** Map key wording for /currents day sources, at the hour on the timeline. */
+const CURRENT_SOURCE: Record<string, string> = {
+  forecast: 'Copernicus forecast, daily, ~9 km',
+  analysis: 'Copernicus analysis, daily, ~9 km',
+  reanalysis: 'Copernicus reanalysis, daily, ~9 km',
+  held: 'Last available day, held',
+};
 
 const LAYERS: { key: LayerKey; label: string; hint?: string }[] = [
   { key: 'algaeColour', label: 'Algae colour' },
@@ -10,16 +22,28 @@ const LAYERS: { key: LayerKey; label: string; hint?: string }[] = [
   { key: 'fronts', label: 'Forecast bloom edges' },
   { key: 'uncertainty', label: 'Forecast uncertainty', hint: 'Where forecast runs disagree' },
   { key: 'currents', label: 'Surface currents' },
-  { key: 'buoys', label: 'Buoys', hint: 'Hover one to read it' },
-  { key: 'contours', label: 'Contour lines', hint: 'Every 100 m on land, 50 m underwater' },
+  { key: 'buoys', label: 'Sample points', hint: 'Hover one to read it' },
+  { key: 'contours', label: 'Contour lines' },
 ];
 
-const LOG_MIN = Math.log(2);
-const LOG_MAX = Math.log(300);
-const at = (chl: number) => ((Math.log(chl) - LOG_MIN) / (LOG_MAX - LOG_MIN)) * 100;
-const TICKS = [5, 25, 80, 220];
-
 export function MapKey() {
+  const ref = algaeRef();
+  const { bloomChl, bloom: rule } = getRegion();
+  // Real data with a relative rule has no single bloom number to mark on the scale.
+  const relative = DATA_SOURCE === 'backend' && rule?.rule === 'relative';
+  const LOG_MIN = Math.log(0.2 * ref);
+  const LOG_MAX = Math.log(30 * ref);
+  const at = (chl: number) => ((Math.log(chl) - LOG_MIN) / (LOG_MAX - LOG_MIN)) * 100;
+  const ticks = algaeStops(ref).map((t) => Number(t.toPrecision(2)));
+  const world = useApp((s) => s.world);
+  const contourHint = world ? `Every 100 m on land, ${contourStepM(world.terrain)} m underwater` : undefined;
+  const currentsSource = useApp((s) => {
+    const real = s.sim?.currents;
+    if (!real) return s.sim ? 'Simulated' : undefined;
+    const day = real.sources[Math.round(Math.min(Math.max((s.hour - TIMELINE_START_H) / 24, 0), real.sources.length - 1))];
+    return CURRENT_SOURCE[day] ?? 'No data for this day';
+  });
+  const hintFor = (key: LayerKey, hint?: string) => (key === 'contours' ? contourHint : key === 'currents' ? currentsSource : hint);
   const layers = useApp((s) => s.layers);
   const toggle = useApp((s) => s.toggleLayer);
   const panelOpen = useApp((s) => s.selectedFarmId !== null);
@@ -65,26 +89,30 @@ export function MapKey() {
             onClick={resetView}
             className="rounded-md px-1.5 py-0.5 text-xs font-semibold text-ink-2 hover:bg-white hover:text-ink"
           >
-            Whole lake
+            Whole area
           </button>
         </div>
         <div className="relative mt-2">
           <div className="h-2.5 rounded-sm" style={{ background: gradient }} />
           <div className="relative mt-1 h-4 text-2xs tabular-nums text-ink-2">
-            {TICKS.map((t) => (
+            {ticks.map((t, i) => (
               <span key={t} className="absolute -translate-x-1/2" style={{ left: `${at(t)}%` }}>
-                {t === 220 ? '220+' : t}
+                {i === ticks.length - 1 ? `${t}+` : t}
               </span>
             ))}
           </div>
-          <span
-            className="absolute top-0 h-2.5 w-0.5 -translate-x-1/2 bg-ink"
-            style={{ left: `${at(CHL_BLOOM)}%` }}
-            aria-hidden="true"
-          />
+          {!relative && (
+            <span
+              className="absolute top-0 h-2.5 w-0.5 -translate-x-1/2 bg-ink"
+              style={{ left: `${at(bloomChl)}%` }}
+              aria-hidden="true"
+            />
+          )}
         </div>
         <p className="mt-0.5 text-xs leading-snug text-ink-2">
-          Chlorophyll-a in µg/L. A bloom starts at {CHL_BLOOM}.
+          {relative
+            ? `Chlorophyll-a in µg/L. A bloom is over ${rule!.timesClimP97}× the usual level for that spot and season.`
+            : `Chlorophyll-a in µg/L. A bloom starts at ${bloomChl}.`}
         </p>
 
         <h2 className="mt-3 text-[13px] font-bold">Forecast bloom edge</h2>
@@ -126,7 +154,9 @@ export function MapKey() {
                   />
                   <span className="leading-tight">
                     <span className="block text-[13px]">{l.label}</span>
-                    {l.hint && <span className="block text-xs text-ink-3">{l.hint}</span>}
+                    {hintFor(l.key, l.hint) && (
+                      <span className="block text-xs text-ink-3">{hintFor(l.key, l.hint)}</span>
+                    )}
                   </span>
                 </label>
               </li>

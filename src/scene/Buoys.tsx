@@ -1,4 +1,4 @@
-// Monitoring buoys. Hover or focus one to read its sensors at the hour on the timeline.
+// Sampling points. Hover or focus one to read chlorophyll, oxygen and temperature at the hour on the timeline.
 
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';

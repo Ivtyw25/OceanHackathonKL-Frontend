@@ -1,14 +1,13 @@
-// Loads the Lake Toba relief produced by scripts/build-terrain.mjs and maps between
+// Loads a region's relief produced by scripts/build-terrain.mjs and maps between
 // geographic, pixel and world coordinates. World: x = east, z = south, y = up, 1 unit = 1 km.
 
 export interface TerrainMeta {
   width: number;
   height: number;
   bounds: { west: number; east: number; south: number; north: number };
-  lakeLevelM: number;
   maxDepthM: number;
   metersPerPixel: { x: number; y: number };
-  lakeAreaKm2: number;
+  waterAreaKm2?: number;
   landRangeM: [number, number];
   heightsOffset: number;
   heightsScale: number;
@@ -20,15 +19,15 @@ export interface Terrain {
   meta: TerrainMeta;
   width: number;
   height: number;
-  /** Metres relative to the lake surface (negative = lake floor). Row 0 is the north edge. */
+  /** Metres relative to the water surface (negative = sea or lake floor). Row 0 is the north edge. */
   heightsM: Float32Array;
-  /** 1 where the pixel is lake. */
+  /** 1 where the pixel is water. */
   mask: Uint8Array;
   /** World size of the whole grid in km. */
   worldWidth: number;
   worldDepth: number;
-  /** Pixel bounding box of the lake (inclusive). */
-  lakeBox: { x0: number; y0: number; x1: number; y1: number };
+  /** Pixel bounding box of the water (inclusive). */
+  waterBox: { x0: number; y0: number; x1: number; y1: number };
 }
 
 export function parseTerrain(meta: TerrainMeta, buffer: ArrayBuffer): Terrain {
@@ -60,14 +59,14 @@ export function parseTerrain(meta: TerrainMeta, buffer: ArrayBuffer): Terrain {
     mask,
     worldWidth: (meta.width * meta.metersPerPixel.x) / 1000,
     worldDepth: (meta.height * meta.metersPerPixel.y) / 1000,
-    lakeBox: { x0, y0, x1, y1 },
+    waterBox: { x0, y0, x1, y1 },
   };
 }
 
-export async function loadTerrain(base = '/data/toba'): Promise<Terrain> {
+export async function loadTerrain(base: string): Promise<Terrain> {
   const [metaRes, binRes] = await Promise.all([fetch(`${base}/meta.json`), fetch(`${base}/terrain.bin`)]);
   if (!metaRes.ok || !binRes.ok) {
-    throw new Error('The Lake Toba relief data is missing. Run "npm run terrain" to build it.');
+    throw new Error(`The relief data is missing from ${base}. Run "npm run terrain -- <region id>" to build it.`);
   }
   const meta = (await metaRes.json()) as TerrainMeta;
   return parseTerrain(meta, await binRes.arrayBuffer());
@@ -101,3 +100,6 @@ export function heightAtPx(t: Terrain, x: number, y: number): number {
     (h[k] * (1 - ax) + h[k + 1] * ax) * (1 - ay) + (h[k + t.width] * (1 - ax) + h[k + t.width + 1] * ax) * ay
   );
 }
+
+/** Contour spacing on the water floor: fine for a shallow shelf, coarse for a deep lake. */
+export const contourStepM = (t: Terrain) => (t.meta.maxDepthM > 200 ? 50 : 10);

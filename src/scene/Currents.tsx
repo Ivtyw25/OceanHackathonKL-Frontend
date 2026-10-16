@@ -1,9 +1,10 @@
-// Surface currents as drifting streaks. They follow the same current field the bloom
-// simulation uses, and move faster while the timeline plays.
+// Surface currents as drifting streaks, moving faster while the timeline plays. With backend data they
+// follow the real daily currents, blended between days; otherwise the simulation's own current field.
 
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { TIMELINE_START_H } from '../config';
 import { simInputFor, useApp } from '../state/store';
 import { useScene } from './resources';
 
@@ -49,9 +50,10 @@ export function Currents() {
 
   const fields = useRef<{ hour: number; u: Float32Array; v: Float32Array } | null>(null);
   const windKey = useApp((s) => `${s.forecastWind.fromDeg}:${s.forecastWind.speed}`);
+  const sim = useApp((s) => s.sim);
   useEffect(() => {
     fields.current = null;
-  }, [windKey]);
+  }, [windKey, sim]);
 
   const geometry = useMemo(() => {
     const g = new THREE.BufferGeometry();
@@ -82,7 +84,19 @@ export function Currents() {
     if (!fields.current || fields.current.hour !== hourKey) {
       const u = fields.current?.u ?? new Float32Array(n * n);
       const v = fields.current?.v ?? new Float32Array(n * n);
-      world.model.currentsAt(simInputFor(app), hourKey, u, v);
+      const real = app.sim?.currents;
+      if (real) {
+        // Day k sits at local noon, 24 h apart from the timeline start.
+        const pos = Math.min(Math.max((hourKey - TIMELINE_START_H) / 24, 0), real.u.length - 1);
+        const k = Math.min(Math.floor(pos), real.u.length - 2);
+        const a = pos - k;
+        for (let c = 0; c < u.length; c++) {
+          u[c] = real.u[k][c] * (1 - a) + real.u[k + 1][c] * a;
+          v[c] = real.v[k][c] * (1 - a) + real.v[k + 1][c] * a;
+        }
+      } else {
+        world.model.currentsAt(simInputFor(app), hourKey, u, v);
+      }
       fields.current = { hour: hourKey, u, v };
     }
     const { u, v } = fields.current;
@@ -95,7 +109,7 @@ export function Currents() {
     const col = geometry.getAttribute('color') as THREE.BufferAttribute;
     const P = pos.array as Float32Array;
     const C = col.array as Float32Array;
-    // Streaks fade as the camera pulls back, so the whole-lake view doesn't turn to static.
+    // Streaks fade as the camera pulls back, so the whole-coast view doesn't turn to static.
     const distance = (frame.controls as unknown as { distance?: number } | null)?.distance ?? 100;
     const zoomFade = Math.min(1, Math.max(0.2, 1.25 - distance / 115));
     const sx = simRect.w / n;

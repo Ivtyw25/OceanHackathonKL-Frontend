@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { DEFAULT_FORECAST_WIND } from '../sim/scenario';
+import { getRegion } from '../data/region';
 import { useApp } from '../state/store';
 import { compassPoint, COMPASS_NAMES } from './format';
 
@@ -92,7 +92,8 @@ export function WindControl({ open, onOpenChange }: { open: boolean; onOpenChang
   }, [open, onOpenChange]);
 
   const changed = draft.fromDeg !== wind.fromDeg || draft.speed !== wind.speed;
-  const isDefault = wind.fromDeg === DEFAULT_FORECAST_WIND.fromDeg && wind.speed === DEFAULT_FORECAST_WIND.speed;
+  const defaultWind = getRegion().simulation.forecastWind;
+  const isDefault = wind.fromDeg === defaultWind.fromDeg && wind.speed === defaultWind.speed;
 
   return (
     <div ref={root} className="relative">
@@ -156,7 +157,7 @@ export function WindControl({ open, onOpenChange }: { open: boolean; onOpenChang
             {!isDefault && !running && (
               <button
                 type="button"
-                onClick={() => void runForecast(DEFAULT_FORECAST_WIND)}
+                onClick={() => void runForecast(defaultWind)}
                 className="rounded-lg px-3 py-2 text-[13px] font-semibold text-ink-2 hover:bg-white hover:text-ink"
               >
                 Use original wind

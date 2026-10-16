@@ -1,9 +1,14 @@
-import { DO_STRESS, OUTLOOK_HOURS, TIME_ZONE } from '../config';
+import { DO_STRESS, OUTLOOK_HOURS } from '../config';
+import { getRegion } from '../data/region';
 import type { FarmOutlook } from '../sim/risk';
 
 export const timeAt = (now: Date, hour: number) => new Date(now.getTime() + hour * 3_600_000);
 
-const fmt = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('en-GB', { timeZone: TIME_ZONE, ...opts });
+// Built on first use: the region's time zone isn't known when this module loads.
+const fmt = (opts: Intl.DateTimeFormatOptions) => {
+  let f: Intl.DateTimeFormat | null = null;
+  return { format: (d: Date) => (f ??= new Intl.DateTimeFormat('en-GB', { timeZone: getRegion().timeZone, ...opts })).format(d) };
+};
 const weekdayLong = fmt({ weekday: 'long' });
 const weekdayShort = fmt({ weekday: 'short' });
 const dayMonth = fmt({ day: 'numeric', month: 'long' });
@@ -49,7 +54,7 @@ export function outlookHeadline(o: FarmOutlook, name: string) {
   return `No bloom expected at ${name} in the next ${OUTLOOK_DAYS} days.`;
 }
 
-export const ACTIONS: Record<FarmOutlook['level'], string[]> = {
+export const actionsFor = (level: FarmOutlook['level']): string[] => ({
   low: ['Keep the normal feeding routine.', 'Look at the water colour each morning.'],
   watch: [
     'Check dissolved oxygen at dawn and dusk.',
@@ -66,9 +71,9 @@ export const ACTIONS: Record<FarmOutlook['level'], string[]> = {
     'Stop feeding until oxygen recovers.',
     'Run aerators continuously.',
     'Harvest market-size fish early.',
-    'Tell the district fisheries office (Dinas Perikanan).',
+    `Report it to ${getRegion().fisheriesOffice}.`,
   ],
-};
+})[level];
 
 export const compassPoint = (deg: number) =>
   ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'][

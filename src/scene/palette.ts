@@ -21,8 +21,8 @@ export const PALETTE = {
   soil: '#6c5b49',
 } as const;
 
-/** Chlorophyll-a (µg/L) at which each algae colour stop is reached. */
-export const ALGAE_STOPS = [5, 25, 80, 220] as const;
+/** Chlorophyll-a (µg/L) at which each algae colour stop is reached, as multiples of the region's reference level. */
+export const algaeStops = (ref: number) => [0.3, 1, 3, 10].map((k) => k * ref);
 export const ALGAE_COLORS = ['#2f6f5c', '#3f9d4b', '#7fbe3c', '#c4d647'] as const;
 
 export const STATUS_COLORS = {

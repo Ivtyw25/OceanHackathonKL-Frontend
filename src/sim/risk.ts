@@ -2,7 +2,6 @@
 // when it arrives, how low oxygen may fall, and a status level.
 
 import {
-  CHL_BLOOM,
   DO_DANGER,
   DO_STRESS,
   FRAME_COUNT,
@@ -35,6 +34,10 @@ export interface FarmOutlook {
   minOxygen: number;
   minOxygenHour: number;
   series: FarmSeries;
+  /** This farm's bloom level (µg/L) when it differs by place, as with a relative rule; else the run's bloomChl. */
+  bloomChl?: number;
+  /** Distance (km) to the bloom water driving the risk, when that's nearby water rather than the farm's own cell. */
+  nearbyKm?: number | null;
 }
 
 export const frameOfHour = (hour: number) => Math.round(hour) - TIMELINE_START_H;
@@ -55,6 +58,7 @@ function quantile(sorted: number[], q: number) {
 
 export function farmOutlook(out: SimOutput, farmIndex: number): FarmOutlook {
   const M = out.members;
+  const bloom = out.bloomChl;
   const F = FRAME_COUNT;
   const base = farmIndex * M * F;
   const series: FarmSeries = {
@@ -72,7 +76,7 @@ export function farmOutlook(out: SimOutput, farmIndex: number): FarmOutlook {
       const chl = out.farmSeries[base + m * F + f];
       values[m] = chl;
       oxy[m] = oxygenAt(chl, out.light[f], out.tempC[f]);
-      if (chl > CHL_BLOOM) above++;
+      if (chl > bloom) above++;
     }
     values.sort((a, b) => a - b);
     oxy.sort((a, b) => a - b);
@@ -84,7 +88,7 @@ export function farmOutlook(out: SimOutput, farmIndex: number): FarmOutlook {
   }
 
   const nowChl = out.farmSeries[base + NOW_FRAME];
-  const presentNow = nowChl > CHL_BLOOM;
+  const presentNow = nowChl > bloom;
   const outlookEnd = NOW_FRAME + OUTLOOK_HOURS;
 
   const firstHit: number[] = [];
@@ -92,7 +96,7 @@ export function farmOutlook(out: SimOutput, farmIndex: number): FarmOutlook {
   for (let m = 0; m < M; m++) {
     let first = Infinity;
     for (let f = NOW_FRAME; f <= frameOfHour(TIMELINE_END_H); f++) {
-      if (out.farmSeries[base + m * F + f] > CHL_BLOOM) {
+      if (out.farmSeries[base + m * F + f] > bloom) {
         first = f - NOW_FRAME;
         break;
       }
@@ -119,7 +123,7 @@ export function farmOutlook(out: SimOutput, farmIndex: number): FarmOutlook {
   let level: RiskLevel = 'low';
   if (chance >= 0.8 || minOxygen < DO_DANGER) level = 'severe';
   else if (chance >= 0.5 || minOxygen < DO_STRESS) level = 'high';
-  else if (chance >= 0.2 || peakChl >= CHL_BLOOM * 0.6) level = 'watch';
+  else if (chance >= 0.2 || peakChl >= bloom * 0.6) level = 'watch';
 
   return { level, chance, etaHours, presentNow, nowChl, peakChl, minOxygen, minOxygenHour, series };
 }

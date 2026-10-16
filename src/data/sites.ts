@@ -1,26 +1,8 @@
-// Demo floating-cage (keramba jaring apung) farms and monitoring buoys around Lake Toba.
-// Place names are real; positions are approximate and every number here is mock data.
+// Places a region's farms and sampling points on the terrain, snapping each into the water.
 
 import { distanceTransform } from '../lib/edt';
+import type { FarmSpec, Region } from './region';
 import { lonLatToPx, pxToWorld, type Terrain } from './terrain';
-
-export interface FarmSpec {
-  id: string;
-  name: string;
-  shore: string;
-  lon: number;
-  lat: number;
-  cages: number;
-  /** Relative nutrient loading from feed and waste, used by the bloom simulation. */
-  load: number;
-}
-
-export interface SensorSpec {
-  id: string;
-  name: string;
-  lon: number;
-  lat: number;
-}
 
 export interface Site {
   id: string;
@@ -33,27 +15,7 @@ export interface Site {
 export interface Farm extends Site, Omit<FarmSpec, 'lon' | 'lat'> {}
 export type Sensor = Site;
 
-export const FARM_SPECS: FarmSpec[] = [
-  { id: 'haranggaol', name: 'Haranggaol', shore: 'North shore', lon: 98.672, lat: 2.878, cages: 420, load: 34 },
-  { id: 'tongging', name: 'Tongging', shore: 'Northern tip', lon: 98.525, lat: 2.905, cages: 60, load: 8 },
-  { id: 'silalahi', name: 'Silalahi', shore: 'West shore', lon: 98.555, lat: 2.805, cages: 140, load: 12 },
-  { id: 'tigaras', name: 'Tigaras', shore: 'North-east shore', lon: 98.8, lat: 2.795, cages: 90, load: 10 },
-  { id: 'pangururan', name: 'Pangururan', shore: 'Samosir, west', lon: 98.7, lat: 2.61, cages: 160, load: 14 },
-  { id: 'tomok', name: 'Tomok', shore: 'Samosir, east', lon: 98.858, lat: 2.652, cages: 70, load: 8 },
-  { id: 'ajibata', name: 'Ajibata', shore: 'East shore', lon: 98.937, lat: 2.655, cages: 220, load: 14 },
-  { id: 'onanrunggu', name: 'Onan Runggu', shore: 'Samosir, south', lon: 98.9, lat: 2.465, cages: 50, load: 7 },
-  { id: 'balige', name: 'Balige', shore: 'South shore', lon: 99.065, lat: 2.335, cages: 110, load: 12 },
-];
-
-export const SENSOR_SPECS: SensorSpec[] = [
-  { id: 'b-north', name: 'North basin buoy', lon: 98.66, lat: 2.8 },
-  { id: 'b-haranggaol', name: 'Haranggaol bay buoy', lon: 98.69, lat: 2.86 },
-  { id: 'b-parapat', name: 'Parapat strait buoy', lon: 98.9, lat: 2.69 },
-  { id: 'b-south', name: 'South basin buoy', lon: 98.95, lat: 2.42 },
-  { id: 'b-balige', name: 'Balige bay buoy', lon: 99.06, lat: 2.36 },
-];
-
-/** Snap a point into the lake, preferring water `minShore`–`maxShore` pixels from land. */
+/** Snap a point into the water, preferring water `minShore`–`maxShore` pixels from land. */
 function snapToLake(
   t: Terrain,
   shoreDist: Float32Array,
@@ -85,17 +47,17 @@ function snapToLake(
     }
   }
   const p = best ?? fallback;
-  if (!p) throw new Error(`No lake water near ${lon}, ${lat}`);
+  if (!p) throw new Error(`No water near ${lon}, ${lat}`);
   return p;
 }
 
-export function placeSites(t: Terrain): { farms: Farm[]; sensors: Sensor[] } {
+export function placeSites(t: Terrain, region: Region): { farms: Farm[]; sensors: Sensor[] } {
   const shoreDist = distanceTransform(t.mask, t.width, t.height);
-  const farms = FARM_SPECS.map(({ lon, lat, ...rest }) => {
+  const farms = region.farms.map(({ lon, lat, ...rest }) => {
     const px = snapToLake(t, shoreDist, lon, lat, 3, 7);
     return { ...rest, px, world: pxToWorld(t, px[0], px[1]) };
   });
-  const sensors = SENSOR_SPECS.map(({ lon, lat, ...rest }) => {
+  const sensors = region.samplePoints.map(({ lon, lat, ...rest }) => {
     const px = snapToLake(t, shoreDist, lon, lat, 14, 400);
     return { ...rest, px, world: pxToWorld(t, px[0], px[1]) };
   });

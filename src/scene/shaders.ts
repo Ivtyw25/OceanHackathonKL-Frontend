@@ -2,9 +2,12 @@
 
 import * as THREE from 'three';
 import { CHL_ENCODE_MAX } from '../config';
-import { ALGAE_COLORS, ALGAE_STOPS } from './palette';
+import { algaeRef } from '../data/region';
+import { ALGAE_COLORS } from './palette';
 
 export const algaeUniforms = () => ({
+  // The colour reference level (algaeRef), not necessarily the bloom level.
+  uBloom: { value: algaeRef() },
   uAlgae0: { value: new THREE.Color(ALGAE_COLORS[0]) },
   uAlgae1: { value: new THREE.Color(ALGAE_COLORS[1]) },
   uAlgae2: { value: new THREE.Color(ALGAE_COLORS[2]) },
@@ -18,16 +21,20 @@ uniform vec3 uAlgae0;
 uniform vec3 uAlgae1;
 uniform vec3 uAlgae2;
 uniform vec3 uAlgae3;
+uniform float uBloom;
 
 const float CHL_MAX = ${f(CHL_ENCODE_MAX)};
 
 float decodeChl(float enc) { return enc * enc * CHL_MAX; }
 
 vec3 algaeRamp(float chl) {
-  float t = log(max(chl, 1.0));
-  vec3 c = mix(uAlgae0, uAlgae1, smoothstep(${f(Math.log(ALGAE_STOPS[0]))}, ${f(Math.log(ALGAE_STOPS[1]))}, t));
-  c = mix(c, uAlgae2, smoothstep(${f(Math.log(ALGAE_STOPS[1]))}, ${f(Math.log(ALGAE_STOPS[2]))}, t));
-  c = mix(c, uAlgae3, smoothstep(${f(Math.log(ALGAE_STOPS[2]))}, ${f(Math.log(ALGAE_STOPS[3]))}, t));
+  // Stops at 0.3, 1, 3 and 10 times the reference level, matching algaeStops() in palette.ts.
+  float t = log(max(chl, 1e-3));
+  float s0 = log(uBloom * 0.3);
+  float s1 = log(uBloom);
+  vec3 c = mix(uAlgae0, uAlgae1, smoothstep(s0, s1, t));
+  c = mix(c, uAlgae2, smoothstep(s1, log(uBloom * 3.0), t));
+  c = mix(c, uAlgae3, smoothstep(log(uBloom * 3.0), log(uBloom * 10.0), t));
   return c;
 }
 

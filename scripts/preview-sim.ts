@@ -1,34 +1,39 @@
 // Runs the bloom simulation in Node and writes a contact sheet of snapshots, so the scenario
 // can be tuned without a browser.
-// Usage: npm run sim:preview -- [out.png] [--wind <fromDeg> <speed>]
+// Usage: npm run sim:preview -- [out.png] [--region <id>] [--wind <fromDeg> <speed>]
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 import { CHL_ENCODE_MAX, ENSEMBLE_MEMBERS, FRAME_COUNT } from '../src/config';
 import { placeSites } from '../src/data/sites';
+import type { Region, RegionIndex } from '../src/data/region';
 import { parseTerrain, type TerrainMeta } from '../src/data/terrain';
 import { pxToCell } from '../src/sim/grid';
 import { BloomModel } from '../src/sim/model';
 import { farmOutlook, frameOfHour } from '../src/sim/risk';
-import { buildSetup, DEFAULT_FORECAST_WIND } from '../src/sim/scenario';
+import { buildSetup } from '../src/sim/scenario';
 
 const root = path.resolve(import.meta.dirname, '..');
-const meta = JSON.parse(fs.readFileSync(path.join(root, 'public/data/toba/meta.json'), 'utf8')) as TerrainMeta;
-const bin = fs.readFileSync(path.join(root, 'public/data/toba/terrain.bin'));
+const args = process.argv.slice(2);
+const readJson = <T>(file: string) => JSON.parse(fs.readFileSync(path.join(root, 'public/regions', file), 'utf8')) as T;
+const regionIdx = args.indexOf('--region');
+const regionId = regionIdx > -1 ? args[regionIdx + 1] : readJson<RegionIndex>('index.json').defaultRegion;
+const region = readJson<Region>(`${regionId}/region.json`);
+const meta = readJson<TerrainMeta>(`${regionId}/meta.json`);
+const bin = fs.readFileSync(path.join(root, 'public/regions', regionId, 'terrain.bin'));
 const terrain = parseTerrain(meta, bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength) as ArrayBuffer);
-const { farms, sensors } = placeSites(terrain);
-const setup = buildSetup(terrain, farms, sensors);
+const { farms, sensors } = placeSites(terrain, region);
+const setup = buildSetup(terrain, farms, sensors, region);
 const model = new BloomModel(setup);
 
-const args = process.argv.slice(2);
 const windIdx = args.indexOf('--wind');
 const wind =
-  windIdx > -1 ? { fromDeg: Number(args[windIdx + 1]), speed: Number(args[windIdx + 2]) } : DEFAULT_FORECAST_WIND;
+  windIdx > -1 ? { fromDeg: Number(args[windIdx + 1]), speed: Number(args[windIdx + 2]) } : region.simulation.forecastWind;
 const outFile = args.find((a) => a.endsWith('.png')) ?? path.join(root, '.cache/sim-preview.png');
 
 const out = model.run({ nowLocalHour: 8, forecastWind: wind, members: ENSEMBLE_MEMBERS });
-console.log(`grid ${setup.grid.n}² (${setup.grid.waterIdx.length} water cells, ${setup.grid.cellM.toFixed(0)} m), ` +
+console.log(`${region.name}: grid ${setup.grid.n}² (${setup.grid.waterIdx.length} water cells, ${setup.grid.cellM.toFixed(0)} m), ` +
   `${FRAME_COUNT} frames x ${out.members} members in ${out.elapsedMs.toFixed(0)} ms, wind from ${wind.fromDeg}° at ${wind.speed} m/s`);
 
 farms.forEach((f, i) => {

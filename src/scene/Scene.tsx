@@ -2,7 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import { useEffect, useMemo } from 'react';
 import { FRAME_COUNT, TIMELINE_END_H, TIMELINE_START_H } from '../config';
-import { useApp, type World } from '../state/store';
+import { useApp, type World, timelineEnd } from '../state/store';
 import { AlgaeLayer } from './AlgaeLayer';
 import { Buoys } from './Buoys';
 import { CameraRig } from './CameraRig';
@@ -23,9 +23,10 @@ function TimeDriver() {
     const app = useApp.getState();
     let hour = app.hour;
     if (app.playing) {
-      hour = Math.min(TIMELINE_END_H, hour + Math.min(delta, 0.1) * app.speed);
+      const end = timelineEnd(app);
+      hour = Math.min(end, hour + Math.min(delta, 0.1) * app.speed);
       app.setHour(hour);
-      if (hour >= TIMELINE_END_H) app.setPlaying(false);
+      if (hour >= end) app.setPlaying(false);
     }
     const z = (h: number) => (h - TIMELINE_START_H + 0.5) / FRAME_COUNT;
     const front = (lead: number) => (hour + lead <= TIMELINE_END_H ? z(hour + lead) : -1);

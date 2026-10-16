@@ -1,6 +1,6 @@
-# BloomWatch Toba — OceanHackathon KL Frontend
+# AlgaWatch frontend (Ocean Hackathon KL)
 
-A 3D frontend prototype for forecasting harmful algal blooms at the floating-cage fish farms of Lake Toba, North Sumatra. It shows where algae is now, where currents and wind will carry it over the next five days, and what that means for each farm.
+A 3D frontend prototype for forecasting harmful algal blooms at floating-cage fish farms on the Kota Kinabalu to Tuaran coast, Sabah. It shows where algae is now, where currents and wind will carry it over the next five days, and what that means for each farm.
 
 All farm, sensor and forecast data is simulated. The terrain is real.
 
@@ -27,13 +27,13 @@ There is no backend. The bloom simulation runs in the browser in a Web Worker.
 Requires Node.js 22 or newer (developed on Node 24, npm 11).
 
 ```bash
-git clone https://github.com/Ivtyw25/OceanHackathonKL-Frontend.git
-cd OceanHackathonKL-Frontend
+git clone https://github.com/KUL08-AlgaWatch/chua-reference.git
+cd chua-reference/frontend
 npm install
 npm run dev        # http://localhost:5173
 ```
 
-`public/data/toba/` is already built and committed. To rebuild it from source tiles, run `npm run terrain`. This downloads about 36 elevation tiles into `.cache/`.
+Each place lives in `public/regions/<id>/` (`region.json` plus built terrain), listed in `public/regions/index.json`. Pick one with the header dropdown or `?region=<id>`. To rebuild a place's terrain, run `npm run terrain -- <id>`; it downloads about 36 elevation tiles into `.cache/`. Adding a place is described in the project README.
 
 | Command | What it does |
 |---|---|
@@ -41,27 +41,31 @@ npm run dev        # http://localhost:5173
 | `npm run build` | Type-check and production build into `dist/` |
 | `npm run preview` | Serve the `dist/` build locally |
 | `npm run typecheck` | Type-check only |
-| `npm run terrain` | Rebuild the Lake Toba relief (`--preview out.png` writes a check image) |
-| `npm run sim:preview -- out.png [--wind 180 5]` | Run the bloom simulation in Node and write a snapshot sheet. Use it to tune the scenario without a browser |
+| `npm run terrain -- <id>` | Build a region's relief from its `region.json` and add it to the index (`--preview out.png` writes a check image) |
+| `npm run sim:preview -- out.png [--region <id>] [--wind 180 5]` | Run the bloom simulation in Node and write a snapshot sheet. Use it to tune the scenario without a browser |
 
 Keyboard: Space plays or pauses. Left and right arrows step one hour (hold Shift for six). Escape closes a farm.
 
 ## Folder structure
 
 ```
-OceanHackathonKL-Frontend/
+frontend/
 ├── index.html                  Vite entry HTML (title, favicon, #root)
 ├── package.json                Scripts and dependencies
 ├── vite.config.ts              React + Tailwind plugins; workers built as ES modules
 ├── tsconfig.json               Strict TS config for src/ and scripts/*.ts
 │
 ├── public/
-│   └── data/toba/              Pre-built terrain, served as static files
-│       ├── terrain.bin         Int16 heights (decimetres vs. lake level) + Uint8 lake mask
-│       └── meta.json           Grid size, geographic bounds, lake level, attribution
+│   └── regions/                One folder per place, served as static files
+│       ├── index.json          Places in the header dropdown, and the default
+│       └── <id>/
+│           ├── region.json     Name, box, time zone, bloom level, farms, sample points, simulation, view
+│           ├── terrain.bin     Int16 heights (× heightsScale m vs. the water surface) + Uint8 water mask
+│           └── meta.json       Grid size, bounds, max depth, heightsScale, attribution
 │
 ├── scripts/                    Node-only tools (not bundled into the app)
-│   ├── build-terrain.mjs       Downloads elevation tiles → writes public/data/toba/
+│   ├── build-terrain.mjs       Region's elevation tiles → terrain.bin + meta.json; updates index.json
+│   ├── terrain/                Shared tile code, sea builder (real bathymetry), lake builder (modelled floor)
 │   └── preview-sim.ts          Runs the simulation headless → writes a PNG contact sheet
 │
 └── src/
@@ -72,21 +76,22 @@ OceanHackathonKL-Frontend/
     │
     ├── data/                   Static inputs
     │   ├── terrain.ts          Loads terrain.bin; converts lon/lat ↔ pixel ↔ world coordinates
-    │   └── sites.ts            Farm and buoy definitions (real names, mock numbers); snaps them into the lake
+    │   ├── region.ts           Loads the active place (?region=) and the place list
+    │   └── sites.ts            Places the region's farms and sample points, snapping them into the water
     │
     ├── sim/                    Bloom simulation (no React, no three.js; also runs in Node)
     │   ├── model.ts            Currents, advection, algae growth, oxygen; the core model
-    │   ├── grid.ts             Simulation grid over the lake (coarser than the terrain)
-    │   ├── scenario.ts         Demo scenario: initial bloom, river inputs, default forecast wind
+    │   ├── grid.ts             Simulation grid over the water (coarser than the terrain)
+    │   ├── scenario.ts         Turns the region's rivers and starting bloom into simulation inputs
     │   ├── risk.ts             Ensemble → per-farm outlook (bloom chance, arrival time, oxygen, status)
     │   ├── worker.ts           Web Worker entry; runs the 8-member ensemble off the main thread
     │   └── client.ts           Main-thread wrapper around the worker (swap this for a real API)
     │
     ├── scene/                  3D view (React Three Fiber)
     │   ├── Scene.tsx           <Canvas> contents; drives the timeline clock and shared uniforms
-    │   ├── CameraRig.tsx       Opening fly-in, whole-lake view, zoom to a farm
-    │   ├── Terrain.tsx         Relief, contour lines, block sides showing tuff strata
-    │   ├── Water.tsx           Lake surface: depth tint, algae colour, forecast bloom edges
+    │   ├── CameraRig.tsx       Opening fly-in, whole-coast view, zoom to a farm
+    │   ├── Terrain.tsx         Relief, contour lines, block sides showing layered strata
+    │   ├── Water.tsx           Sea surface: depth tint, algae colour, forecast bloom edges
     │   ├── AlgaeLayer.tsx      Translucent sheet raised by algae density
     │   ├── Currents.tsx        Drifting streaks along the simulated current field
     │   ├── Farms.tsx           Cage clusters, status halos, clickable labels
@@ -139,9 +144,8 @@ config.ts ─┬─> data/ ──> sim/ ──> state/store.ts ──┬─> sce
 
 | You want to… | Edit |
 |---|---|
-| Change bloom/oxygen thresholds, timeline length, grid size | `src/config.ts` |
-| Add or move a farm or buoy | `src/data/sites.ts` |
-| Change the starting bloom, rivers or default wind | `src/sim/scenario.ts` |
+| Change a place's bloom level, farms, sample points, rivers, starting bloom, default wind or 3D scale | `public/regions/<id>/region.json` |
+| Change oxygen thresholds, timeline length, grid size | `src/config.ts` |
 | Change the physics or algae growth | `src/sim/model.ts` |
 | Change how a farm's risk level is decided | `src/sim/risk.ts` |
 | Connect a real backend | `src/sim/client.ts` (see [Plugging in real data](#plugging-in-real-data)) |
@@ -153,8 +157,8 @@ config.ts ─┬─> data/ ──> sim/ ──> state/store.ts ──┬─> sce
 
 | Part | Source |
 |---|---|
-| Land relief, shoreline, Samosir | Real: AWS Open Data Terrain Tiles (SRTM / GMTED / ETOPO1), zoom 11, about 90 m |
-| Lake floor | Modelled from distance to shore and scaled to Toba's ~505 m maximum depth. No public survey grid is used |
+| Land relief, coastline, islands, sea floor | Real: AWS Open Data Terrain Tiles (SRTM / GMTED / ETOPO1), zoom 11, about 90 m |
+| Sea floor detail | ETOPO1 cells are ~1.8 km, so the floor is smoothed. Max depth in the box is 80 m |
 | Farm and buoy locations | Real place names, approximate positions, snapped into the water |
 | Cage counts, algae, oxygen, currents, wind | Simulated (see below) |
 | Bloom and oxygen thresholds | Demo values in `src/config.ts` |
@@ -162,13 +166,13 @@ config.ts ─┬─> data/ ──> sim/ ──> state/store.ts ──┬─> sce
 ## How it works
 
 ```
-scripts/build-terrain.mjs   tiles → terrain.bin (heights + lake mask) + meta.json
+scripts/build-terrain.mjs   tiles → terrain.bin (heights + sea mask) + meta.json
         │
 src/sim/  (Web Worker)      8-run ensemble on a 256² grid, hourly, −72 h … +120 h
         │                    → chlorophyll (control run) and P(bloom) as 3D textures
         │                    → per-farm series → risk level, arrival time, oxygen
 src/scene/  (React Three Fiber)
-        Terrain      relief + contour lines + tuff-strata block sides
+        Terrain      relief + contour lines + layered block sides
         Water        depth tint, algae colour, forecast bloom edges (P = 0.5 isolines at +24/48/72 h)
         AlgaeLayer   translucent sheet raised by algae density
         Currents     streaks advected by the same current field the simulation uses
@@ -196,4 +200,4 @@ The scene only consumes these shapes, so a backend can replace `SimClient.run()`
   - `farmSeries[farm][member][frame]` (µg/L)
   - `sensorSeries[sensor][frame]`
   - `windFrom`, `windSpeed`, `tempC`, `light` per frame
-- **Relief:** any lake works if you produce `terrain.bin` + `meta.json` in the same format.
+- **Relief:** any coast or lake works if you produce `terrain.bin` + `meta.json` in the same format.

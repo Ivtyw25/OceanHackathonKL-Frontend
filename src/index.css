@@ -154,3 +154,19 @@
     animation-duration: 0ms !important;
   }
 }
+
+/* Timeline loading bar: a segment sliding across while the observed days load. */
+@keyframes timeline-loading {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+.timeline-loading {
+  animation: timeline-loading 1.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .timeline-loading {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}

@@ -1,4 +1,4 @@
-// The simulation grid: a square window over the lake, coarser than the terrain.
+// The simulation grid: a square window over the water, coarser than the terrain.
 
 import { SIM_SIZE } from '../config';
 import type { Terrain } from '../data/terrain';
@@ -26,12 +26,14 @@ export interface SimGrid {
 }
 
 export function buildSimGrid(t: Terrain, n = SIM_SIZE): SimGrid {
-  const { x0, y0, x1, y1 } = t.lakeBox;
-  const span = Math.max(x1 - x0 + 1, y1 - y0 + 1) + 2;
+  const { x0, y0, x1, y1 } = t.waterBox;
+  // Open sea reaches the terrain edge, so keep the grid inside the terrain or the water plane overhangs it.
+  const span = Math.min(Math.max(x1 - x0 + 1, y1 - y0 + 1) + 2, Math.min(t.width, t.height));
   const cellPx = Math.ceil(span / n);
   const domain = cellPx * n;
-  const ox = Math.round((x0 + x1 + 1) / 2 - domain / 2);
-  const oy = Math.round((y0 + y1 + 1) / 2 - domain / 2);
+  const fit = (centre: number, size: number) => Math.min(Math.max(Math.round(centre - domain / 2), 0), Math.max(0, size - domain));
+  const ox = fit((x0 + x1 + 1) / 2, t.width);
+  const oy = fit((y0 + y1 + 1) / 2, t.height);
 
   const water = new Uint8Array(n * n);
   const depthM = new Float32Array(n * n);

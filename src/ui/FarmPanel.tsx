@@ -1,15 +1,22 @@
 import { useMemo } from 'react';
-import { CHL_BLOOM, DO_DANGER, DO_STRESS, TIMELINE_END_H } from '../config';
+import { DO_DANGER, DO_STRESS, TIMELINE_END_H } from '../config';
 import { frameOfHour, type FarmOutlook } from '../sim/risk';
 import { useApp } from '../state/store';
-import { ACTIONS, formatShortDay, formatWhen, outlookHeadline, timeAt } from './format';
+import { actionsFor, formatShortDay, formatWhen, outlookHeadline, timeAt } from './format';
 import { STATUS_LABEL, StatusIcon } from './StatusIcon';
 import { TimeChart } from './TimeChart';
 
 const ALGAE_SERIES = '#3f9d4b';
 const OXYGEN_SERIES = '#2a6886';
 
+/** Chlorophyll with sensible precision: real coastal values are often below 1 µg/L. */
+const chlText = (v: number) => (v < 10 ? v.toFixed(1) : v.toFixed(0));
+
 const ALGAE_SCALES = [
+  { max: 2, ticks: [0, 1, 2] },
+  { max: 5, ticks: [0, 2.5, 5] },
+  { max: 10, ticks: [0, 5, 10] },
+  { max: 20, ticks: [0, 10, 20] },
   { max: 40, ticks: [0, 20, 40] },
   { max: 60, ticks: [0, 30, 60] },
   { max: 100, ticks: [0, 50, 100] },
@@ -23,13 +30,16 @@ function algaeScale(peak: number) {
   return ALGAE_SCALES.find((s) => s.max >= peak * 1.1) ?? ALGAE_SCALES[ALGAE_SCALES.length - 1];
 }
 
-function supportLine(o: FarmOutlook, members: number, now: Date) {
+function supportLine(o: FarmOutlook, members: number, now: Date, bloom: number) {
   const agree = Math.round(o.chance * members);
-  if (o.presentNow) return `Chlorophyll-a is ${Math.round(o.nowChl)} µg/L at the cages. Bloom level is ${CHL_BLOOM}.`;
+  // A single model run gives a probability, not a count of agreeing runs.
+  const odds = members > 1 ? `${agree} of ${members} forecast runs bring it here` : `${Math.round(o.chance * 100)}% chance it arrives`;
+  if (o.presentNow) return `Chlorophyll-a is ${chlText(o.nowChl)} µg/L at the cages. Bloom level here is ${chlText(bloom)}.`;
+  const near = o.nearbyKm != null ? ` Bloom water about ${o.nearbyKm} km away.` : '';
   if (o.etaHours !== null) {
-    return `Around ${formatWhen(timeAt(now, o.etaHours))}. ${agree} of ${members} forecast runs bring it here within 3 days.`;
+    return `Around ${formatWhen(timeAt(now, o.etaHours))}. ${odds} within 3 days.${near}`;
   }
-  return `${agree} of ${members} forecast runs bring it here within 3 days.`;
+  return `${odds} within 3 days.${near}`;
 }
 
 function dailyRows(o: FarmOutlook, now: Date) {
@@ -68,7 +78,8 @@ export function FarmPanel() {
 
   if (!farm || !outlook || !sim) return null;
   const f = frameOfHour(hour);
-  const scale = algaeScale(Math.max(...outlook.series.p90, CHL_BLOOM * 1.6));
+  const bloom = outlook.bloomChl ?? sim.bloomChl;
+  const scale = algaeScale(Math.max(...outlook.series.p90, bloom * 1.6));
   const scrub = (h: number) => {
     setPlaying(false);
     setHour(h);
@@ -87,7 +98,7 @@ export function FarmPanel() {
         <div className="min-w-0">
           <h2 className="text-[26px] font-bold leading-tight tracking-[-0.02em]">{farm.name}</h2>
           <p className="mt-0.5 text-[13px] text-ink-2">
-            {farm.shore}, {farm.cages} cages of tilapia
+            {farm.shore}, {farm.cages} fish cages
           </p>
         </div>
         <button
@@ -108,17 +119,17 @@ export function FarmPanel() {
           <p className="mt-2 text-[20px] font-semibold leading-snug tracking-[-0.01em]">
             {outlookHeadline(outlook, farm.name)}
           </p>
-          <p className="mt-1.5 text-[14px] leading-relaxed text-ink-2">{supportLine(outlook, sim.members, now)}</p>
+          <p className="mt-1.5 text-[14px] leading-relaxed text-ink-2">{supportLine(outlook, sim.members, now, bloom)}</p>
         </section>
 
         <section className="mt-5">
           <div className="flex items-baseline justify-between gap-2">
             <h3 className="text-[14px] font-bold">Algae at the cages</h3>
             <p className="text-[13px] tabular-nums text-ink-2">
-              {outlook.series.median[f].toFixed(0)} µg/L, {formatWhen(timeAt(now, Math.round(hour)))}
+              {chlText(outlook.series.median[f])} µg/L, {formatWhen(timeAt(now, Math.round(hour)))}
             </p>
           </div>
-          <p className="mb-2 text-xs text-ink-3">Chlorophyll-a. The shaded band is the spread of the forecast runs.</p>
+          <p className="mb-2 text-xs text-ink-3">Chlorophyll-a. The shaded band is the forecast's likely range.</p>
           <TimeChart
             label={`Chlorophyll-a at ${farm.name}`}
             values={outlook.series.median}
@@ -127,7 +138,7 @@ export function FarmPanel() {
             yMax={scale.max}
             yTicks={scale.ticks}
             unit="µg/L"
-            threshold={{ value: CHL_BLOOM, label: `Bloom level, ${CHL_BLOOM}` }}
+            threshold={{ value: bloom, label: `Bloom level, ${chlText(bloom)}` }}
             hour={hour}
             now={now}
             onScrub={scrub}
@@ -140,7 +151,7 @@ export function FarmPanel() {
             <p className="text-[13px] tabular-nums text-ink-2">{outlook.series.oxygen[f].toFixed(1)} mg/L</p>
           </div>
           <p className="mb-2 text-xs text-ink-3">
-            Dissolved oxygen. Tilapia are stressed below {DO_STRESS} mg/L and can die below {DO_DANGER}.
+            Dissolved oxygen. Caged fish are stressed below {DO_STRESS} mg/L and can die below {DO_DANGER}.
           </p>
           <TimeChart
             label={`Dissolved oxygen at ${farm.name}`}
@@ -174,7 +185,7 @@ export function FarmPanel() {
                 <tr key={r.key} className="border-t border-ink/8">
                   <td className="py-1.5 font-semibold">{r.label}</td>
                   <td className="py-1.5 text-right">{Math.round(r.chance * 100)}%</td>
-                  <td className="py-1.5 text-right">{r.peak.toFixed(0)} µg/L</td>
+                  <td className="py-1.5 text-right">{chlText(r.peak)} µg/L</td>
                   <td className={`py-1.5 text-right ${r.minOxygen < DO_STRESS ? 'font-bold' : ''}`}>
                     <span className="inline-flex items-center justify-end gap-1.5">
                       {r.minOxygen < DO_STRESS && (
@@ -192,7 +203,7 @@ export function FarmPanel() {
         <section className="mt-5">
           <h3 className="text-[14px] font-bold">What to do</h3>
           <ul className="mt-2 space-y-1.5 text-[14px] leading-snug">
-            {ACTIONS[outlook.level].map((a) => (
+            {actionsFor(outlook.level).map((a) => (
               <li key={a} className="flex gap-2.5">
                 <span aria-hidden="true" className="mt-[0.45rem] size-1.5 shrink-0 rounded-full bg-ink-2" />
                 {a}

@@ -10,7 +10,7 @@ export function useKeyboardShortcuts() {
       const app = useApp.getState();
       if (e.key === ' ' && !target?.closest('button')) {
         e.preventDefault();
-        app.setPlaying(!app.playing);
+        if (app.sim) app.setPlaying(!app.playing);
       } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         e.preventDefault();
         const step = (e.shiftKey ? 6 : 1) * (e.key === 'ArrowRight' ? 1 : -1);

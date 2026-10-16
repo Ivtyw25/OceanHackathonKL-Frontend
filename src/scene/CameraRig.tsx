@@ -7,7 +7,7 @@ import { useApp } from '../state/store';
 import { useScene } from './resources';
 import { prefersReducedMotion } from './usePrefersReducedMotion';
 
-/** Width of the side panels in CSS px on wide screens; the view is nudged so the lake stays centred. */
+/** Width of the side panels in CSS px on wide screens; the view is nudged so the coast stays centred. */
 export const LEFT_PANEL_PX = 296;
 export const RIGHT_PANEL_PX = 400;
 const WIDE = 1024;
@@ -23,13 +23,14 @@ export function CameraRig() {
 
   const portrait = size.width / size.height < 0.9;
   const home = useMemo(() => {
-    const { x0, y0, x1, y1 } = world.terrain.lakeBox;
-    const [cx, cz] = pxToWorld(world.terrain, (x0 + x1) / 2, (y0 + y1) / 2);
+    // Frame the farms, not the map: open sea fills most of the box.
+    const xs = world.farms.map((f) => f.px[0]);
+    const ys = world.farms.map((f) => f.px[1]);
+    const [cx, cz] = pxToWorld(world.terrain, (Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2);
     if (portrait) {
-      // On tall screens, look up the lake's long north-west to south-east axis from the south-east.
-      const d = 150;
+      // On tall screens, look along the region's long axis (azimuth set per region).
+      const { portraitDistance: d, portraitAzimuth: az } = world.region.view;
       const polar = 0.82;
-      const az = 0.85;
       return {
         target: [cx, -0.6, cz] as const,
         position: [cx + d * Math.sin(polar) * Math.sin(az), d * Math.cos(polar), cz + d * Math.sin(polar) * Math.cos(az)] as const,
@@ -44,7 +45,7 @@ export function CameraRig() {
     return new THREE.Box3(new THREE.Vector3(-hw, -3, -hd), new THREE.Vector3(hw, 3, hd));
   }, [world]);
 
-  // Opening move: settle from high above onto the caldera.
+  // Opening move: settle from high above onto the coast.
   useEffect(() => {
     const c = ref.current;
     if (!c) return;
@@ -62,7 +63,7 @@ export function CameraRig() {
     });
   }, [home, bounds]);
 
-  // Requested moves: back to the whole lake, or in to a farm.
+  // Requested moves: back to the whole coast, or in to a farm.
   useEffect(() => {
     const c = ref.current;
     if (!c || nonce === 0) return;

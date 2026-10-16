@@ -5,18 +5,16 @@
 //   - growth = light x temperature x nutrients (fed by cage farms and rivers), damped by wind mixing
 // The forecast is an ensemble: each member perturbs wind direction, wind speed and growth.
 
-import { CHL_BLOOM, CHL_ENCODE_MAX, FRAME_COUNT, TIMELINE_END_H, TIMELINE_START_H } from '../config';
+import { CHL_ENCODE_MAX, FRAME_COUNT, TIMELINE_END_H, TIMELINE_START_H } from '../config';
+import type { SimulationParams, WindSetting } from '../data/region';
 import type { SimGrid } from './grid';
 
-export interface WindSetting {
-  /** Direction the wind blows from, degrees clockwise from north. */
-  fromDeg: number;
-  /** m/s */
-  speed: number;
-}
+export type { WindSetting };
+
+export type SimParams = SimulationParams & { bloomChl: number };
 
 export interface SimInput {
-  /** Local (WIB) hour of day at "now". */
+  /** Local (MYT) hour of day at "now". */
   nowLocalHour: number;
   /** Mean wind for the forecast period. */
   forecastWind: WindSetting;
@@ -34,6 +32,16 @@ export interface SimSetup {
   sensors: SimPoint[];
   rivers: (SimPoint & { load: number })[];
   seeds: (SimPoint & { amp: number; sigmaM: number })[];
+  params: SimParams;
+}
+
+/** Daily current fields from real data, one per day from the timeline start (backend runs only). */
+export interface DailyCurrents {
+  /** m/s on the simulation grid, x = east, z = south. [day][cell] */
+  u: Float32Array[];
+  v: Float32Array[];
+  /** Where each day came from: forecast, analysis, reanalysis, held or none. */
+  sources: string[];
 }
 
 export interface SimOutput {
@@ -51,6 +59,10 @@ export interface SimOutput {
   windSpeed: Float32Array;
   tempC: Float32Array;
   light: Float32Array;
+  /** Bloom level (µg/L) the `prob` field and farm outlooks are measured against. */
+  bloomChl: number;
+  /** Real currents for the streaks; absent for the in-browser simulation, which computes its own. */
+  currents?: DailyCurrents;
   elapsedMs: number;
 }
 
@@ -61,10 +73,7 @@ interface Member {
 }
 
 const DT = 3600;
-const MU_MAX = 0.07;
 const LOSS = 0.0105;
-const K_CAP = 350;
-const FLOOR = 1.2;
 const DRIFT = 0.022;
 const DIFFUSIVITY = 3;
 const NUTRIENT_HALF = 14;
@@ -119,10 +128,10 @@ export const daylight = (local: number) => Math.max(0, Math.sin((Math.PI * (loca
 
 const diurnalWind = (local: number) => 0.7 + 0.6 * Math.max(0, Math.sin((Math.PI * (local - 10)) / 12));
 
-export function surfaceTemp(input: Pick<SimInput, 'nowLocalHour'>, hour: number) {
+export function surfaceTemp(input: Pick<SimInput, 'nowLocalHour'>, hour: number, p: SimParams) {
   const local = localHourAt(input, hour);
   const warmSpell = 0.6 * Math.exp(-(((hour - 40) / 30) ** 2));
-  return 26.2 + 0.7 * Math.sin((2 * Math.PI * (local - 9)) / 24) + warmSpell;
+  return p.waterTempC + p.dailyTempSwingC * Math.sin((2 * Math.PI * (local - 9)) / 24) + warmSpell;
 }
 
 function toVector(fromDeg: number, speed: number) {
@@ -130,9 +139,9 @@ function toVector(fromDeg: number, speed: number) {
   return { x: speed * Math.sin(toward), z: -speed * Math.cos(toward) };
 }
 
-export function windAt(input: SimInput, hour: number, member: Member) {
+export function windAt(input: SimInput, hour: number, member: Member, p: SimParams) {
   const di = diurnalWind(localHourAt(input, hour));
-  const past = toVector(165 + 25 * Math.sin((2 * Math.PI * hour) / 31), 1.6 * di);
+  const past = toVector(p.pastWindFromDeg + 25 * Math.sin((2 * Math.PI * hour) / 31), p.pastWindSpeed * di);
   const lead = Math.max(0, hour);
   const fc = toVector(
     input.forecastWind.fromDeg + member.dirOffset * Math.sqrt(lead / TIMELINE_END_H),
@@ -227,7 +236,7 @@ export class BloomModel {
   ) {
     const g = this.grid;
     const { n, waterIdx, water, normalX, normalZ, shoreM } = g;
-    const wind = windAt(input, hour, member);
+    const wind = windAt(input, hour, member, this.setup.params);
     const gs = 0.35 + 0.12 * wind.speed;
     const dx = DRIFT * wind.x;
     const dz = DRIFT * wind.z;
@@ -298,9 +307,10 @@ export class BloomModel {
     const dk = (DIFFUSIVITY * DT) / (g.cellM * g.cellM);
     const local = localHourAt(input, hour);
     const light = daylight(local);
-    const fT = Math.exp(0.07 * (surfaceTemp(input, hour) - 26));
+    const p = this.setup.params;
+    const fT = Math.exp(0.07 * (surfaceTemp(input, hour, p) - p.waterTempC));
     const fW = 1 / (1 + (wind.speed / 5.5) ** 2);
-    const mu0 = MU_MAX * member.growth * light * fT * fW;
+    const mu0 = p.growthRate * member.growth * light * fT * fW;
     const loss = LOSS + 0.006 * Math.max(0, wind.speed - 3.5);
     const nut = this.nutrient;
     for (const c of waterIdx) {
@@ -312,8 +322,8 @@ export class BloomModel {
       if (water[c + n]) lap += tmp[c + n] - bc;
       const d = bc + dk * lap;
       const fN = nut[c] / (nut[c] + NUTRIENT_HALF);
-      let next = d + d * (mu0 * fN * (1 - d / K_CAP) - loss);
-      if (next < FLOOR) next = FLOOR;
+      let next = d + d * (mu0 * fN * (1 - d / p.carryingCapacity) - loss);
+      if (next < p.minChl) next = p.minChl;
       else if (next > CHL_ENCODE_MAX) next = CHL_ENCODE_MAX;
       b[c] = next;
     }
@@ -334,7 +344,7 @@ export class BloomModel {
     const w01 = (1 - ax) * az * water[k + n];
     const w11 = ax * az * water[k + n + 1];
     const sw = w00 + w10 + w01 + w11;
-    if (sw < 1e-6) return FLOOR;
+    if (sw < 1e-6) return this.setup.params.minChl;
     return (w00 * b[k] + w10 * b[k + 1] + w01 * b[k + n] + w11 * b[k + n + 1]) / sw;
   }
 
@@ -392,6 +402,7 @@ export class BloomModel {
     const u = new Float32Array(nn);
     const v = new Float32Array(nn);
     const enc = 255 / Math.sqrt(CHL_ENCODE_MAX);
+    const bloom = this.setup.params.bloomChl;
 
     const record = (f: number, hour: number) => {
       const off = f * nn;
@@ -400,7 +411,7 @@ export class BloomModel {
       for (const c of waterIdx) {
         conc[off + c] = Math.round(Math.sqrt(control[c]) * enc);
         let above = 0;
-        for (let m = 0; m < active; m++) if (states[m][c] > CHL_BLOOM) above++;
+        for (let m = 0; m < active; m++) if (states[m][c] > bloom) above++;
         prob[off + c] = Math.round((above / active) * 255);
       }
       // Pad coastal land cells with their water neighbours so texture filtering stays clean.
@@ -430,10 +441,10 @@ export class BloomModel {
       sensors.forEach((s, si) => {
         sensorSeries[si * frames + f] = this.sample(control, s.cell);
       });
-      const w = windAt(input, hour, members[0]);
+      const w = windAt(input, hour, members[0], this.setup.params);
       windFrom[f] = w.fromDeg;
       windSpeed[f] = w.speed;
-      tempC[f] = surfaceTemp(input, hour);
+      tempC[f] = surfaceTemp(input, hour, this.setup.params);
       light[f] = daylight(localHourAt(input, hour));
     };
 
@@ -462,6 +473,7 @@ export class BloomModel {
       windSpeed,
       tempC,
       light,
+      bloomChl: bloom,
       elapsedMs: performance.now() - t0,
     };
   }

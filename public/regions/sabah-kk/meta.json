@@ -1,0 +1,26 @@
+{
+  "width": 1024,
+  "height": 1024,
+  "bounds": {
+    "west": 115.75,
+    "east": 116.6,
+    "south": 5.75,
+    "north": 6.6
+  },
+  "surfaceLevelM": 0,
+  "maxDepthM": 80,
+  "metersPerPixel": {
+    "x": 91.9,
+    "y": 91.8
+  },
+  "waterAreaKm2": 4600,
+  "landRangeM": [
+    1,
+    4037
+  ],
+  "heightsOffset": 0,
+  "heightsScale": 0.2,
+  "maskOffset": 2097152,
+  "rowOrder": "north-to-south",
+  "attribution": "Elevation: AWS Open Data Terrain Tiles (Mapzen/Tilezen; SRTM, GMTED, ETOPO1). Sea floor smoothed from ~1.8 km ETOPO1 cells."
+}

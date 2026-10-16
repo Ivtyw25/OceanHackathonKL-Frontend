@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Terrain } from '../data/terrain';
 
-/** RG half-float texture: R = height in km relative to the lake surface, G = lake mask. */
+/** RG half-float texture: R = height in km relative to sea level, G = sea mask. */
 export function makeTerrainTexture(t: Terrain): THREE.DataTexture {
   const n = t.width * t.height;
   const data = new Uint16Array(n * 2);

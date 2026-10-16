@@ -1,4 +1,4 @@
-// The lake surface: depth-tinted water, algae colour from the simulation, and the
+// The sea surface: depth-tinted water, algae colour from the simulation, and the
 // forecast bloom edges drawn as contour lines of the ensemble probability.
 
 import { useEffect, useMemo } from 'react';
@@ -74,6 +74,7 @@ float frontAt(vec2 suv, float z, float widthPx) {
 
 void main() {
   vec2 tuv = vec2(vWorld.x / uWorldSize.x + 0.5, vWorld.z / uWorldSize.y + 0.5);
+  if (any(lessThan(tuv, vec2(0.0))) || any(greaterThan(tuv, vec2(1.0)))) discard;
   vec2 hm = texture(uTerrain, tuv).rg;
   float wet = smoothstep(0.3, 0.7, hm.g);
   if (wet < 0.01) discard;
@@ -95,7 +96,7 @@ void main() {
     float chl = decodeChl(texture(uConc, vec3(suv, uTimeZ)).r);
     float n1 = fbm(vWorld.xz * 0.5 + vec2(uTime * 0.010, -uTime * 0.007));
     float n2 = fbm(vWorld.xz * 1.7 + n1 * 2.2);
-    float amount = smoothstep(3.0, 26.0, chl);
+    float amount = smoothstep(0.15 * uBloom, 1.2 * uBloom, chl);
     vis = clamp(amount * (0.8 + 0.55 * (n2 - 0.5)), 0.0, 1.0) * uShowAlgae;
     col = mix(col, algaeRamp(chl), vis);
   }

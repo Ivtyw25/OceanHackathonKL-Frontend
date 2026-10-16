@@ -24,7 +24,7 @@ varying vec3 vNormal2;
 
 float heightAt(vec2 suv) {
   float chl = decodeChl(texture(uConc, vec3(suv, uTimeZ)).r);
-  return uMaxH * pow(smoothstep(12.0, 260.0, chl), 0.75);
+  return uMaxH * pow(smoothstep(0.5 * uBloom, 10.0 * uBloom, chl), 0.75);
 }
 
 void main() {
@@ -58,7 +58,7 @@ void main() {
   float diffuse = 0.55 + 0.6 * max(dot(N, uSunDir), 0.0);
   float rim = pow(1.0 - max(dot(N, V), 0.0), 2.0);
   vec3 col = algaeRamp(vChl) * diffuse + rim * 0.25;
-  float a = smoothstep(12.0, 45.0, vChl) * (0.42 + 0.25 * smoothstep(45.0, 200.0, vChl)) + rim * 0.12;
+  float a = smoothstep(0.5 * uBloom, 1.8 * uBloom, vChl) * (0.42 + 0.25 * smoothstep(1.8 * uBloom, 8.0 * uBloom, vChl)) + rim * 0.12;
   gl_FragColor = vec4(col, clamp(a, 0.0, 0.85));
   #include <colorspace_fragment>
 }
