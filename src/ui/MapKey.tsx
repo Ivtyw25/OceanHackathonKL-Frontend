@@ -128,7 +128,9 @@ export function MapKey() {
             </span>
           ))}
         </div>
-        <p className="mt-1 text-xs leading-snug text-ink-2">Where most forecast runs show a bloom.</p>
+        <p className="mt-1 text-xs leading-snug text-ink-2">
+          {DATA_SOURCE === 'backend' ? 'Where a bloom is more likely than not.' : 'Where most forecast runs show a bloom.'}
+        </p>
 
         <button
           type="button"
